@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates an Amazon EFS file system and mount target
+Parameters:
+    VolumeName:
+        Description: The name to be used for the EFS volume
+        Type: String
+        MinLength: '1'
+        Default: myEFSvolume
+    MountPoint:
+        Description: The Linux mount point for the EFS volume
+        Type: String
+        MinLength: '1'
+        Default: myEFSvolume        
+    VPC:
+        Type: AWS::EC2::VPC
+        Properties:
+          EnableDnsSupport: 'true'
+          EnableDnsHostnames: 'true'
+          CidrBlock: 10.0.0.0/16
+          Tags:
+          - Key: Application
+            Value:
+              Ref: AWS::StackId       
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+            - Key: Application
+            Value:
+                Ref: AWS::StackName
+            - Key: Network
+            Value: Public
