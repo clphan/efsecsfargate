@@ -176,7 +176,18 @@ Resources:
             GroupName: "no-ingress-sg"
             GroupDescription: "Security group with no ingress rule"
             VpcId: !Ref VPC
-
+            
+    MountTargetSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            VpcId:
+                Ref: VPC
+            GroupDescription: Security group for mount target
+            SecurityGroupIngress:
+            - IpProtocol: tcp
+              FromPort: '2049'
+              ToPort: '2049'
+              CidrIp: 0.0.0.0/0
 Outputs:
     VPC:
         Description: A reference to the created VPC
@@ -209,3 +220,7 @@ Outputs:
     NoIngressSecurityGroup:
         Description: Security group with no ingress rule
         Value: !Ref NoIngressSecurityGroup
+    
+    MountTargetSecurityGroup:
+        Description: Security group for EFS mount target
+        Value: !Ref MountTargetSecurityGroup
