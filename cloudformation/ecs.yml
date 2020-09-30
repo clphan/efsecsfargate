@@ -72,9 +72,9 @@ Resources:
         AssumeRolePolicyDocument:
             Statement:
             - Effect: Allow
-                Principal:
+              Principal:
                 Service: ecs-tasks.amazonaws.com
-                Action: 'sts:AssumeRole'
+              Action: 'sts:AssumeRole'
         ManagedPolicyArns:
             - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
 
@@ -107,8 +107,8 @@ Resources:
             Cluster: !Ref Cluster
             TaskDefinition: !Ref TaskDefinition
             DeploymentConfiguration:
-            MinimumHealthyPercent: 100
-            MaximumPercent: 200
+                MinimumHealthyPercent: 100
+                MaximumPercent: 200
             DesiredCount: 1
             # This may need to be adjusted if the container takes a while to start up
             HealthCheckGracePeriodSeconds: 30
