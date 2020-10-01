@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description:  This template deploys a VPC, 2 public and 2 private subnets spread
   across two Availability Zones. 1 IGW, with a default route on the public subnets 
-  & default routes for them in the private subnets.
+  default routes for them in the private subnets.
 
 Parameters:
     EnvironmentName:
@@ -38,12 +38,36 @@ Parameters:
         Type: String
         MinLength: '1'
         Default: myEFSvolume
+
     MountPoint:
         Description: The Linux mount point for the EFS volume
         Type: String
         MinLength: '1'
         Default: myEFSvolume
-    
+
+    Image:
+        Description: Number of instances to launch in your ECS cluster.
+        Type: String
+        Default: cloudphan/efsecsstorage:demo02
+
+    ServiceName:
+        Description: Put the ECS Service name
+        Type: String
+        Default: MyService
+
+    ContainerPort:
+        Type: Number
+        Default: 80
+
+    ContainerPath: 
+        Description: Please enter the container path 
+        Type: String
+        Default: /server
+
+    SourceVolumeName: 
+        Type: String
+        Default: volstorage
+
 Resources:
     VPC:
         Type: AWS::EC2::VPC
@@ -216,6 +240,113 @@ Resources:
                 Ref: PublicSubnet1
             SecurityGroups:
             - Ref: MountTargetSecurityGroup
+    Cluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: !Join ['', [!Ref ServiceName, Cluster]]
+        
+    TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        # Makes sure the log group is created before it is used.
+        DependsOn: LogGroup
+        Properties:
+            Family: !Join ['', [!Ref ServiceName, TaskDefinition]]
+            ContainerDefinitions:
+            - Name: !Ref ServiceName
+              Image: !Ref Image
+              PortMappings:
+              - ContainerPort: !Ref ContainerPort
+              LogConfiguration:
+                LogDriver: awslogs
+                Options:
+                    awslogs-region: !Ref AWS::Region
+                    awslogs-group: !Ref LogGroup
+                    awslogs-stream-prefix: ecs-app
+              MountPoints: 
+              - ContainerPath: !Ref ContainerPath
+                SourceVolume: !Ref SourceVolumeName
+            # awsvpc is required for Fargate
+            NetworkMode: awsvpc
+            RequiresCompatibilities:
+            - FARGATE
+            Cpu: 256
+            Memory: 0.5GB
+            ExecutionRoleArn: !Ref ExecutionRole
+            TaskRoleArn: !Ref TaskRole
+            Volumes:
+                - Name: !Ref SourceVolumeName
+                  EFSVolumeConfiguration: 
+                    FilesystemId: !Ref FileSystem
+                    TransitEncryption: "DISABLED"
+
+    ExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Join ['', [!Ref ServiceName, ExecutionRole]]
+            AssumeRolePolicyDocument:
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                        Service: ecs-tasks.amazonaws.com
+                      Action: 'sts:AssumeRole'
+            ManagedPolicyArns:
+                - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+                - 'arn:aws:iam::019614656427:policy/ecsefsfilesystem-khanh'
+
+
+    TaskRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Join ['', [!Ref ServiceName, TaskRole]]
+            AssumeRolePolicyDocument:
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                        Service: ecs-tasks.amazonaws.com
+                      Action: 'sts:AssumeRole'
+            ManagedPolicyArns:
+                - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+                - 'arn:aws:iam::019614656427:policy/ecsefsfilesystem-khanh'
+
+    ContainerSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: !Join ['', [!Ref ServiceName, ContainerSecurityGroup]]
+            VpcId: !Ref VPC
+            SecurityGroupIngress:
+            - IpProtocol: tcp
+              FromPort: !Ref ContainerPort
+              ToPort: !Ref ContainerPort
+              CidrIp: 0.0.0.0/0
+
+    Service:
+        Type: AWS::ECS::Service
+        Properties: 
+            ServiceName: !Ref ServiceName
+            Cluster: !Ref Cluster
+            PlatformVersion: "1.4.0"
+            DeploymentConfiguration:
+                MinimumHealthyPercent: 100
+                MaximumPercent: 200
+            DesiredCount: 1
+            # This may need to be adjusted if the container takes a while to start up
+            # HealthCheckGracePeriodSeconds: 0
+            LaunchType: FARGATE
+            NetworkConfiguration: 
+                AwsVpcConfiguration:
+                    # change to DISABLED if you're using private subnets that have access to a NAT gateway
+                    AssignPublicIp: ENABLED
+                    Subnets:
+                    - !Ref PublicSubnet1
+                    - !Ref PublicSubnet2
+                    SecurityGroups:
+                    - !Ref ContainerSecurityGroup
+            TaskDefinition: !Ref TaskDefinition
+
+    LogGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Join ['', [/ecs/, !Ref ServiceName, TaskDefinition]]
 Outputs:
     VPC:
         Description: A reference to the created VPC
